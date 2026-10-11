@@ -74,7 +74,12 @@ enum TabControlShortcutHintStyle {
 }
 
 struct TabControlShortcutHintPillBackground: View {
+    var presentation: TabChromePresentation? = nil
     var body: some View {
+        if let presentation {
+            Capsule().fill(presentation.hintBackground)
+                .overlay { Capsule().stroke(presentation.edge, lineWidth: 1) }
+        } else {
         Capsule(style: .continuous)
             .fill(.regularMaterial)
             .overlay(
@@ -90,11 +95,13 @@ struct TabControlShortcutHintPillBackground: View {
                 x: TabControlShortcutHintStyle.shadowX,
                 y: TabControlShortcutHintStyle.shadowY
             )
+        }
     }
 }
 
 struct TabControlShortcutHintPill: View {
     let text: String
+    var presentation: TabChromePresentation? = nil
 
     var body: some View {
         Text(text)
@@ -105,105 +112,7 @@ struct TabControlShortcutHintPill: View {
             .foregroundColor(TabControlShortcutHintStyle.foregroundColor)
             .padding(.horizontal, TabControlShortcutHintStyle.horizontalPadding)
             .padding(.vertical, TabControlShortcutHintStyle.verticalPadding)
-            .background(TabControlShortcutHintPillBackground())
-    }
-}
-
-enum TabItemStyling {
-    static func iconSaturation(hasRasterIcon: Bool, tabSaturation: Double) -> Double {
-        hasRasterIcon ? 1.0 : tabSaturation
-    }
-
-    static func shouldShowHoverBackground(isHovered: Bool, isSelected: Bool) -> Bool {
-        isHovered && !isSelected
-    }
-
-    static func tabWidthRange(for appearance: BonsplitConfiguration.Appearance) -> ClosedRange<CGFloat> {
-        let minimum = max(1, TabBarMetrics.tabMinWidth)
-        let maximum = max(minimum, appearance.tabMaxWidth)
-        return minimum...maximum
-    }
-
-    /// Natural width of the ⌃/⌘ shortcut-hint pill for `label`. The standard tab
-    /// strip overlays this pill without reserving width, but icon-only pinned
-    /// browser tabs (which have no close button to overlay) still reserve it so
-    /// holding the modifier never resizes the pinned chip.
-    static func shortcutHintWidth(for label: String) -> CGFloat {
-        let textWidth = (label as NSString).size(withAttributes: TabControlShortcutHintStyle.measurementAttributes).width
-        return ceil(textWidth) + (TabControlShortcutHintStyle.horizontalPadding * 2)
-    }
-
-    /// Width of a tab's trailing accessory slot.
-    ///
-    /// The slot reserves only the close-button (`accessorySlotSize`) width and
-    /// never widens for the keyboard-shortcut hint. The ⌃/⌘ digit pill overlays
-    /// this same slot (it is mutually exclusive with the close button and
-    /// non-interactive), rendering at its natural size within the tab's trailing
-    /// padding instead of pushing layout. Two consequences, both intended:
-    ///   1. A tab carrying a ⌃/⌘ digit is exactly as wide as one without, so the
-    ///      hint feature no longer makes tabs wider.
-    ///   2. The reserved width is a constant, independent of `isFocused`,
-    ///      `tabShortcutHintsEnabled`, the label, and the debug `xOffset`, so the
-    ///      tab bar never shifts when a pane gains/loses focus or ⌃/⌘ is held.
-    /// The parameters are accepted so the call site can pass the live state, but
-    /// none of them may affect the result.
-    static func reservedShortcutHintSlotWidth(
-        shortcutHintLabel: String?,
-        tabShortcutHintsEnabled: Bool,
-        isFocused: Bool,
-        accessorySlotSize: CGFloat,
-        xOffset: Double
-    ) -> CGFloat {
-        // Deliberately ignores every hint/focus input: the pill overlays the
-        // accessory slot, so the reserved layout width is always just the
-        // close-button size. See the doc comment above.
-        _ = (shortcutHintLabel, tabShortcutHintsEnabled, isFocused, xOffset)
-        return accessorySlotSize
-    }
-
-    static func resolvedFaviconImage(existing: NSImage?, incomingData: Data?) -> NSImage? {
-        guard let incomingData else { return nil }
-        if let decoded = NSImage(data: incomingData) {
-            // Favicon bitmaps must never be treated as template/tintable symbols.
-            decoded.isTemplate = false
-            return decoded
-        }
-        return existing
-    }
-
-    /// Host-defined tab kind identifier for browser surfaces. Pinned browser tabs
-    /// collapse to an icon-only chip (favicon only) to mirror pinned tabs in macOS
-    /// browsers, freeing tab-bar space for long-lived utility pages.
-    static let browserTabKind = "browser"
-
-    /// Whether a tab should render in the compact icon-only style reserved for
-    /// pinned browser surfaces. Terminal and other kinds keep their titled layout
-    /// when pinned because they have no distinguishing favicon to collapse to.
-    static func isIconOnlyPinned(isPinned: Bool, kind: String?) -> Bool {
-        isPinned && kind == browserTabKind
-    }
-
-    /// Fixed width for an icon-only pinned browser tab: the favicon slot plus the
-    /// tab's symmetric horizontal padding and a little breathing room, so the tab
-    /// shrinks to roughly a square chip hugging its icon.
-    static func pinnedIconOnlyWidth(iconSlotSize: CGFloat, horizontalPadding: CGFloat) -> CGFloat {
-        let icon = max(1, iconSlotSize)
-        let padding = max(0, horizontalPadding)
-        return ceil(icon + padding * 2 + 6)
-    }
-
-    /// Icon-only pinned width that also reserves room for the control-shortcut hint
-    /// pill when one can be shown, so holding the modifier never resizes the tab.
-    /// Pass `reservedShortcutHintWidth == nil` when the tab has no hint to reserve.
-    static func pinnedIconOnlyWidth(
-        iconSlotSize: CGFloat,
-        horizontalPadding: CGFloat,
-        reservedShortcutHintWidth: CGFloat?
-    ) -> CGFloat {
-        let base = pinnedIconOnlyWidth(iconSlotSize: iconSlotSize, horizontalPadding: horizontalPadding)
-        guard let reservedShortcutHintWidth else { return base }
-        let reserved = ceil(max(0, reservedShortcutHintWidth) + max(0, horizontalPadding) * 2)
-        return max(base, reserved)
+            .background(TabControlShortcutHintPillBackground(presentation: presentation))
     }
 }
 
@@ -269,7 +178,7 @@ struct TabItemView: View {
         // titles). Fill mode keeps the flexible behavior so tabs share the strip.
         // Icon-only pinned tabs always size to their fixed compact width.
         .fixedSize(horizontal: isIconOnlyPinned || !fillsWidth, vertical: false)
-        .background(tabBackground.saturation(saturation))
+        .background(tabBackground.saturation(appearance.tabChromePresentation == nil ? saturation : 1))
         .tabControlShortcutHintVisibilityAnimation(value: showsShortcutHint)
         .contentShape(Rectangle().inset(by: -BonsplitTabItemHitTesting.horizontalSlop))
         // Middle click to close (macOS convention).
@@ -311,7 +220,7 @@ struct TabItemView: View {
     /// Whether this tab renders in the compact icon-only style reserved for pinned
     /// browser surfaces (favicon only, no title or trailing affordances).
     private var isIconOnlyPinned: Bool {
-        TabItemStyling.isIconOnlyPinned(isPinned: tab.isPinned, kind: tab.kind)
+        styling.isIconOnlyPinned(isPinned: tab.isPinned, kind: tab.kind)
     }
 
     @ViewBuilder
@@ -373,13 +282,13 @@ struct TabItemView: View {
                             .background(
                                 Circle()
                                     .fill(
-                                        isAudioHovered
+                                        appearance.tabChromePresentation == nil && isAudioHovered
                                             ? TabBarColors.hoveredTabBackground(for: appearance)
                                             : .clear
                                     )
                             )
                     }
-                    .buttonStyle(.plain)
+                    .tabChromeButtonStyle(appearance.tabChromePresentation)
                     .onHover { hovering in
                         withTransaction(Transaction(animation: nil)) {
                             isAudioHovered = hovering
@@ -406,13 +315,13 @@ struct TabItemView: View {
                             .background(
                                 Circle()
                                     .fill(
-                                        isZoomHovered
+                                        appearance.tabChromePresentation == nil && isZoomHovered
                                             ? TabBarColors.hoveredTabBackground(for: appearance)
                                             : .clear
                                     )
                             )
                     }
-                    .buttonStyle(.plain)
+                    .tabChromeButtonStyle(appearance.tabChromePresentation)
                     .onHover { hovering in
                         withTransaction(Transaction(animation: nil)) {
                             isZoomHovered = hovering
@@ -460,7 +369,7 @@ struct TabItemView: View {
                 .allowsHitTesting(!showsShortcutHint)
 
             if let shortcutHintLabel {
-                TabControlShortcutHintPill(text: shortcutHintLabel)
+                TabControlShortcutHintPill(text: shortcutHintLabel, presentation: appearance.tabChromePresentation)
                     .opacity(showsShortcutHint ? 1 : 0)
                     .allowsHitTesting(false)
             }
@@ -502,7 +411,7 @@ struct TabItemView: View {
             }
         }
         // Keep downloaded favicon bitmaps in full color even for inactive tab bars.
-        .saturation(TabItemStyling.iconSaturation(hasRasterIcon: faviconImage != nil, tabSaturation: saturation))
+        .saturation(styling.iconSaturation(hasRasterIcon: faviconImage != nil, tabSaturation: saturation))
         .transaction { tx in
             // Prevent incidental parent animations from briefly fading icon content.
             tx.animation = nil
@@ -555,7 +464,7 @@ struct TabItemView: View {
                         )
                         .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .tabChromeButtonStyle(appearance.tabChromePresentation)
                 .saturation(saturation)
                 .safeHelp(audioLabel)
                 .accessibilityLabel(audioLabel)
@@ -595,9 +504,9 @@ struct TabItemView: View {
     private var pinnedIconOnlyWidth: CGFloat {
         let reservedHint: CGFloat? = {
             guard allowsShortcutHints, let shortcutHintLabel else { return nil }
-            return TabItemStyling.shortcutHintWidth(for: shortcutHintLabel)
+            return styling.shortcutHintWidth(for: shortcutHintLabel)
         }()
-        return TabItemStyling.pinnedIconOnlyWidth(
+        return styling.pinnedIconOnlyWidth(
             iconSlotSize: scaledIconSize,
             horizontalPadding: TabBarMetrics.tabHorizontalPadding,
             reservedShortcutHintWidth: reservedHint
@@ -609,23 +518,25 @@ struct TabItemView: View {
     /// Icons and close/pin affordances are multiplied by this so they grow and
     /// shrink together with the tab title font size instead of staying pinned to
     /// the default-size constants.
+    private var styling: TabItemStyling { TabItemStyling(appearance: appearance) }
+
     private var fontScale: CGFloat {
-        max(0.1, appearance.tabTitleFontSize / TabBarMetrics.titleFontSize)
+        styling.fontScale
     }
 
     /// Leading-icon slot size, scaled to the configured tab title font.
     private var scaledIconSize: CGFloat {
-        TabBarMetrics.iconSize * fontScale
+        styling.iconSize
     }
 
     /// Close / pin glyph size, scaled to the configured tab title font.
     private var scaledCloseIconSize: CGFloat {
-        TabBarMetrics.closeIconSize * fontScale
+        styling.closeIconSize
     }
 
     /// Spacing between the leading icon and the title, scaled to the font.
     private var scaledContentSpacing: CGFloat {
-        TabBarMetrics.contentSpacing * fontScale
+        styling.contentSpacing
     }
 
     private func glyphSize(for iconName: String) -> CGFloat {
@@ -653,7 +564,7 @@ struct TabItemView: View {
     }
 
     private var tabWidthRange: ClosedRange<CGFloat> {
-        TabItemStyling.tabWidthRange(for: appearance)
+        styling.tabWidthRange
     }
 
     private var shortcutHintSlotWidth: CGFloat {
@@ -661,7 +572,7 @@ struct TabItemView: View {
         // this tab has a digit, regardless of focus or modifier-hold. Both focus
         // and modifier-hold change the pill's opacity, not the measured width, so
         // the tab bar never shifts when a pane is focused or ⌃/⌘ is held.
-        TabItemStyling.reservedShortcutHintSlotWidth(
+        styling.reservedShortcutHintSlotWidth(
             shortcutHintLabel: shortcutHintLabel,
             tabShortcutHintsEnabled: tabShortcutHintsEnabled,
             isFocused: isFocused,
@@ -676,7 +587,7 @@ struct TabItemView: View {
 
     private var accessorySlotSize: CGFloat {
         // Keep accessory affordances readable when the tab title font is increased.
-        min(tabHeight, max(TabBarMetrics.closeButtonSize, ceil(accessoryFontSize + 4)))
+        min(tabHeight, max(appearance.tabChromePresentation?.minimumHitSize ?? TabBarMetrics.closeButtonSize, ceil(accessoryFontSize + 4)))
     }
 
     private var tabHeight: CGFloat {
@@ -687,7 +598,7 @@ struct TabItemView: View {
     private var trailingAccessory: some View {
         ZStack(alignment: .center) {
             if let shortcutHintLabel {
-                TabControlShortcutHintPill(text: shortcutHintLabel)
+                TabControlShortcutHintPill(text: shortcutHintLabel, presentation: appearance.tabChromePresentation)
                     .offset(
                         x: TabControlShortcutHintDebugSettings.clamped(controlShortcutHintXOffset),
                         y: TabControlShortcutHintDebugSettings.clamped(controlShortcutHintYOffset)
@@ -739,7 +650,7 @@ struct TabItemView: View {
         guard renderedFaviconData != tab.iconImageData ||
                 (renderedFaviconImage == nil && tab.iconImageData != nil) else { return }
         renderedFaviconData = tab.iconImageData
-        renderedFaviconImage = TabItemStyling.resolvedFaviconImage(
+        renderedFaviconImage = styling.resolvedFaviconImage(
             existing: renderedFaviconImage,
             incomingData: tab.iconImageData
         )
@@ -760,28 +671,9 @@ struct TabItemView: View {
 
     // MARK: - Tab Background
 
-    @ViewBuilder
     private var tabBackground: some View {
-        ZStack(alignment: .top) {
-            if isSelected {
-                Rectangle()
-                    .fill(TabBarColors.activeTabBackground(for: appearance))
-            } else if TabItemStyling.shouldShowHoverBackground(isHovered: isHovered, isSelected: isSelected) {
-                Rectangle()
-                    .fill(TabBarColors.hoveredTabBackground(for: appearance))
-            } else {
-                Color.clear
-            }
-
-            // Right border separator
-            HStack {
-                Spacer()
-                Rectangle()
-                    .fill(TabBarColors.separator(for: appearance))
-                    .frame(width: 1)
-                    .padding(.bottom, max(0, trailingSeparatorBottomInset))
-            }
-        }
+        TabItemBackground(appearance: appearance, isSelected: isSelected, isHovered: isHovered,
+                          trailingSeparatorBottomInset: trailingSeparatorBottomInset)
     }
 
     // MARK: - Close Button / Dirty Indicator
@@ -830,13 +722,13 @@ struct TabItemView: View {
                         .background(
                             Circle()
                                 .fill(
-                                    isCloseHovered
+                                    appearance.tabChromePresentation == nil && isCloseHovered
                                         ? TabBarColors.hoveredTabBackground(for: appearance)
                                         : .clear
                                 )
                         )
                 }
-                .buttonStyle(.plain)
+                .tabChromeButtonStyle(appearance.tabChromePresentation)
                 .onHover { hovering in
                     withTransaction(Transaction(animation: nil)) {
                         isCloseHovered = hovering

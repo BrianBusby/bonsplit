@@ -402,7 +402,7 @@ extension BonsplitConfiguration {
             case hidden = 7
         }
 
-        public struct SplitButtonBackdropEffect: Sendable {
+        public struct SplitButtonBackdropEffect: Sendable, Equatable {
             public var style: SplitButtonBackdropStyle
             public var fadeWidth: CGFloat
             public var contentFadeWidth: CGFloat
@@ -446,7 +446,7 @@ extension BonsplitConfiguration {
             public static let `default` = SplitButtonBackdropEffect()
         }
 
-        public struct ChromeColors: Sendable {
+        public struct ChromeColors: Sendable, Equatable {
             /// Optional hex color (`#RRGGBB` or `#RRGGBBAA`) for general chrome backgrounds.
             /// When unset, Bonsplit uses native system colors.
             public var backgroundHex: String?
@@ -578,6 +578,9 @@ extension BonsplitConfiguration {
 
         /// Optional color overrides for tab/pane chrome.
         public var chromeColors: ChromeColors
+
+        /// Optional explicit tab and control presentation, preserving native defaults when nil.
+        public var tabChromePresentation: TabChromePresentation? = nil
 
         /// When true, the host app is trying to make all surfaces share the
         /// same backdrop. Bonsplit should avoid local chrome color adjustments

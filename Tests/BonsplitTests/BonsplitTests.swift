@@ -2356,47 +2356,15 @@ final class BonsplitTests: XCTestCase {
         )
     }
 
-    func testIconSaturationKeepsRasterFaviconInColorWhenInactive() {
-        XCTAssertEqual(
-            TabItemStyling.iconSaturation(hasRasterIcon: true, tabSaturation: 0.0),
-            1.0
-        )
-    }
 
-    func testIconSaturationStillDesaturatesSymbolIconsWhenInactive() {
-        XCTAssertEqual(
-            TabItemStyling.iconSaturation(hasRasterIcon: false, tabSaturation: 0.0),
-            0.0
-        )
-    }
 
-    func testResolvedFaviconImageUsesIncomingDataWhenDecodable() {
-        let existing = NSImage(size: NSSize(width: 12, height: 12))
-        let incoming = NSImage(size: NSSize(width: 16, height: 16))
-        incoming.lockFocus()
-        NSColor.systemBlue.setFill()
-        NSBezierPath(rect: NSRect(x: 0, y: 0, width: 16, height: 16)).fill()
-        incoming.unlockFocus()
-        let data = incoming.tiffRepresentation
 
-        let resolved = TabItemStyling.resolvedFaviconImage(existing: existing, incomingData: data)
-        XCTAssertNotNil(resolved)
-        XCTAssertFalse(resolved === existing)
-    }
 
-    func testResolvedFaviconImageKeepsExistingImageWhenIncomingDataIsInvalid() {
-        let existing = NSImage(size: NSSize(width: 16, height: 16))
-        let invalidData = Data([0x00, 0x11, 0x22, 0x33])
 
-        let resolved = TabItemStyling.resolvedFaviconImage(existing: existing, incomingData: invalidData)
-        XCTAssertTrue(resolved === existing)
-    }
 
-    func testResolvedFaviconImageClearsWhenIncomingDataIsNil() {
-        let existing = NSImage(size: NSSize(width: 16, height: 16))
-        let resolved = TabItemStyling.resolvedFaviconImage(existing: existing, incomingData: nil)
-        XCTAssertNil(resolved)
-    }
+
+
+
 
     @MainActor
     func testLoadingSpinnerUsesCoreAnimationRotationLayer() throws {
@@ -2772,166 +2740,31 @@ final class BonsplitTests: XCTestCase {
         )
     }
 
-    func testSelectedTabNeverShowsHoverBackground() {
-        XCTAssertFalse(
-            TabItemStyling.shouldShowHoverBackground(isHovered: true, isSelected: true)
-        )
-        XCTAssertTrue(
-            TabItemStyling.shouldShowHoverBackground(isHovered: true, isSelected: false)
-        )
-        XCTAssertFalse(
-            TabItemStyling.shouldShowHoverBackground(isHovered: false, isSelected: false)
-        )
-    }
 
-    func testTabWidthRangeKeepsCompactVisualMinimum() {
-        let range = TabItemStyling.tabWidthRange(
-            for: BonsplitConfiguration.Appearance(tabMinWidth: 140, tabMaxWidth: 220)
-        )
 
-        XCTAssertEqual(range.lowerBound, TabBarMetrics.tabMinWidth)
-        XCTAssertEqual(range.upperBound, 220)
-    }
 
-    func testIconOnlyPinnedRequiresPinnedBrowserTab() {
-        // Pinned browser tabs collapse to icon-only; everything else keeps its title.
-        XCTAssertTrue(TabItemStyling.isIconOnlyPinned(isPinned: true, kind: "browser"))
-        XCTAssertFalse(TabItemStyling.isIconOnlyPinned(isPinned: false, kind: "browser"))
-        XCTAssertFalse(TabItemStyling.isIconOnlyPinned(isPinned: true, kind: "terminal"))
-        XCTAssertFalse(TabItemStyling.isIconOnlyPinned(isPinned: true, kind: nil))
-        XCTAssertFalse(TabItemStyling.isIconOnlyPinned(isPinned: false, kind: "terminal"))
-    }
 
-    func testIconOnlyPinnedKindMatchesBrowserTabKindConstant() {
-        XCTAssertTrue(
-            TabItemStyling.isIconOnlyPinned(isPinned: true, kind: TabItemStyling.browserTabKind)
-        )
-    }
 
-    func testPinnedIconOnlyWidthHugsIconWithPadding() {
-        let width = TabItemStyling.pinnedIconOnlyWidth(iconSlotSize: 14, horizontalPadding: 6)
 
-        // Favicon slot + symmetric padding + breathing room.
-        XCTAssertEqual(width, ceil(14 + 6 * 2 + 6))
-        // The whole point: a pinned browser tab is narrower than the standard tab minimum.
-        XCTAssertLessThan(width, TabBarMetrics.tabMinWidth)
-    }
 
-    func testPinnedIconOnlyWidthClampsDegenerateInputs() {
-        // Non-positive icon/padding inputs are floored so the chip never collapses to zero.
-        let width = TabItemStyling.pinnedIconOnlyWidth(iconSlotSize: 0, horizontalPadding: -10)
-        XCTAssertEqual(width, ceil(1 + 0 + 6))
-        XCTAssertGreaterThan(width, 0)
-    }
 
-    func testPinnedIconOnlyWidthKeepsBaseWhenNoShortcutHintReserved() {
-        let base = TabItemStyling.pinnedIconOnlyWidth(iconSlotSize: 14, horizontalPadding: 6)
-        let reserved = TabItemStyling.pinnedIconOnlyWidth(
-            iconSlotSize: 14,
-            horizontalPadding: 6,
-            reservedShortcutHintWidth: nil
-        )
-        XCTAssertEqual(reserved, base)
-    }
 
-    func testPinnedIconOnlyWidthReservesShortcutHintPillToAvoidLayoutShift() {
-        // A wide hint pill expands the chip so the pill (shown only on modifier-hold)
-        // always fits without resizing the tab.
-        let pill: CGFloat = 30
-        let width = TabItemStyling.pinnedIconOnlyWidth(
-            iconSlotSize: 14,
-            horizontalPadding: 6,
-            reservedShortcutHintWidth: pill
-        )
-        XCTAssertEqual(width, ceil(pill + 6 * 2))
-        XCTAssertGreaterThan(width, TabItemStyling.pinnedIconOnlyWidth(iconSlotSize: 14, horizontalPadding: 6))
-    }
 
-    func testPinnedIconOnlyWidthKeepsBaseWhenReservedHintIsNarrow() {
-        // A narrow hint that fits inside the base chip must not shrink the tab.
-        let base = TabItemStyling.pinnedIconOnlyWidth(iconSlotSize: 14, horizontalPadding: 6)
-        let width = TabItemStyling.pinnedIconOnlyWidth(
-            iconSlotSize: 14,
-            horizontalPadding: 6,
-            reservedShortcutHintWidth: 1
-        )
-        XCTAssertEqual(width, base)
-    }
 
-    func testTabShortcutHintSlotWidthDoesNotChangeWithFocus() {
-        let label = "⌃9"
-        let accessorySlotSize: CGFloat = 18
 
-        let focusedWidth = TabItemStyling.reservedShortcutHintSlotWidth(
-            shortcutHintLabel: label,
-            tabShortcutHintsEnabled: true,
-            isFocused: true,
-            accessorySlotSize: accessorySlotSize,
-            xOffset: 0
-        )
-        let unfocusedWidth = TabItemStyling.reservedShortcutHintSlotWidth(
-            shortcutHintLabel: label,
-            tabShortcutHintsEnabled: true,
-            isFocused: false,
-            accessorySlotSize: accessorySlotSize,
-            xOffset: 0
-        )
 
-        // Focusing a pane must not resize its tabs: the reserved width is
-        // focus-independent, so the tab bar never shifts as focus moves.
-        XCTAssertEqual(focusedWidth, unfocusedWidth)
-    }
 
-    func testTabShortcutHintSlotReservesOnlyAccessoryWidth() {
-        // The trailing accessory reserves just the close-button width. The
-        // shortcut-hint pill overlays that slot (mutually exclusive with the
-        // close button, non-interactive) instead of widening the tab, so a tab
-        // carrying a ⌃/⌘ digit is no wider than one without. Prevents the
-        // "digit tabs are permanently ~11pt too wide" regression.
-        let label = "⌃9"
-        let accessorySlotSize: CGFloat = 18
 
-        for isFocused in [true, false] {
-            let width = TabItemStyling.reservedShortcutHintSlotWidth(
-                shortcutHintLabel: label,
-                tabShortcutHintsEnabled: true,
-                isFocused: isFocused,
-                accessorySlotSize: accessorySlotSize,
-                xOffset: 0
-            )
-            XCTAssertEqual(width, accessorySlotSize)
-        }
-    }
 
-    func testTabShortcutHintSlotWidthCollapsesWhenHintsDisabled() {
-        let label = "⌃9"
-        let accessorySlotSize: CGFloat = 18
 
-        for isFocused in [true, false] {
-            let width = TabItemStyling.reservedShortcutHintSlotWidth(
-                shortcutHintLabel: label,
-                tabShortcutHintsEnabled: false,
-                isFocused: isFocused,
-                accessorySlotSize: accessorySlotSize,
-                xOffset: 0
-            )
-            // With hints disabled no hint width is reserved, regardless of focus.
-            XCTAssertEqual(width, accessorySlotSize)
-        }
-    }
 
-    func testTabShortcutHintWidthUsesSharedPillPadding() {
-        // Still used to reserve the hint pill on icon-only pinned browser tabs.
-        let label = "⌘9"
-        let textWidth = (label as NSString).size(
-            withAttributes: TabControlShortcutHintStyle.measurementAttributes
-        ).width
 
-        XCTAssertEqual(
-            TabItemStyling.shortcutHintWidth(for: label),
-            ceil(textWidth) + (TabControlShortcutHintStyle.horizontalPadding * 2)
-        )
-    }
+
+
+
+
+
+
 
     func testTabShortcutHintStyleMatchesCommandHintPillFont() {
         XCTAssertEqual(TabControlShortcutHintStyle.fontSize, 9)

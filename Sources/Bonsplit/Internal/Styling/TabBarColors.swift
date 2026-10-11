@@ -93,6 +93,9 @@ enum TabBarColors {
         for appearance: BonsplitConfiguration.Appearance,
         secondary: Bool
     ) -> NSColor {
+        if let style = appearance.tabChromePresentation {
+            return NSColor(secondary ? style.secondaryText : style.primaryText)
+        }
         guard let custom = semanticTabBarBackgroundColor(for: appearance) else {
             return secondary ? .secondaryLabelColor : .labelColor
         }
@@ -164,6 +167,7 @@ enum TabBarColors {
     }
 
     static func activeTabBackground(for appearance: BonsplitConfiguration.Appearance) -> Color {
+        if let style = appearance.tabChromePresentation { return style.selectedBackground }
         guard let custom = tabBarBackgroundColor(for: appearance) else {
             return activeTabBackground
         }
@@ -181,6 +185,7 @@ enum TabBarColors {
     }
 
     static func hoveredTabBackground(for appearance: BonsplitConfiguration.Appearance) -> Color {
+        if let style = appearance.tabChromePresentation { return style.hoverBackground }
         guard let custom = tabBarBackgroundColor(for: appearance) else {
             return hoveredTabBackground
         }

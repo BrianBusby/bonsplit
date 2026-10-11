@@ -343,17 +343,18 @@ enum TabBarStyling {
         splitButtonsBackdropWidth(buttonCount: BonsplitConfiguration.SplitActionButton.defaults.count)
     }
 
-    static func splitButtonsBackdropWidth(buttonCount: Int) -> CGFloat {
+    static func splitButtonsBackdropWidth(buttonCount: Int, buttonWidth: CGFloat = splitActionButtonReservedWidth) -> CGFloat {
         guard buttonCount > 0 else { return 0 }
         return splitButtonsLeadingPadding
             + splitButtonsTrailingPadding
-            + (CGFloat(buttonCount) * splitActionButtonReservedWidth)
+            + (CGFloat(buttonCount) * buttonWidth)
             + (CGFloat(max(0, buttonCount - 1)) * splitButtonsSpacing)
     }
 
-    static func minimumVisibleSplitButtonLaneWidth(buttonCount: Int) -> CGFloat {
+    static func minimumVisibleSplitButtonLaneWidth(buttonCount: Int, buttonWidth: CGFloat = splitActionButtonReservedWidth) -> CGFloat {
         splitButtonsBackdropWidth(
-            buttonCount: min(max(0, buttonCount), minimumFullyVisibleSplitButtonCount)
+            buttonCount: min(max(0, buttonCount), minimumFullyVisibleSplitButtonCount),
+            buttonWidth: buttonWidth
         )
     }
 
@@ -497,6 +498,7 @@ struct TabBarLayout: Equatable {
     let splitButtonLaneVisible: Bool
     let reservesSplitButtonLane: Bool
     let measuredSplitButtonLaneWidth: CGFloat
+    let splitActionButtonWidth: CGFloat
 
     init(
         tabBarHeight: CGFloat,
@@ -505,8 +507,10 @@ struct TabBarLayout: Equatable {
         splitButtonCount: Int,
         splitButtonLaneVisible: Bool,
         reservesSplitButtonLane: Bool,
-        measuredSplitButtonLaneWidth: CGFloat = 0
+        measuredSplitButtonLaneWidth: CGFloat = 0,
+        splitActionButtonWidth: CGFloat = TabBarStyling.splitActionButtonReservedWidth
     ) {
+        self.splitActionButtonWidth = max(1, splitActionButtonWidth)
         self.barHeight = max(1, tabBarHeight)
         self.availableWidth = max(0, availableWidth)
         self.tabContentWidthExcludingSplitButtonLane = tabContentWidthExcludingSplitButtonLane.map { max(0, $0) }
@@ -519,7 +523,7 @@ struct TabBarLayout: Equatable {
     }
 
     var minimumSplitButtonLaneWidth: CGFloat {
-        TabBarStyling.splitButtonsBackdropWidth(buttonCount: splitButtonCount)
+        TabBarStyling.splitButtonsBackdropWidth(buttonCount: splitButtonCount, buttonWidth: splitActionButtonWidth)
     }
 
     var fullSplitButtonLaneWidth: CGFloat {
@@ -532,7 +536,7 @@ struct TabBarLayout: Equatable {
         return max(
             fractionLimit,
             trailingWhitespaceBeforeSplitButtonLane,
-            TabBarStyling.minimumVisibleSplitButtonLaneWidth(buttonCount: splitButtonCount)
+            TabBarStyling.minimumVisibleSplitButtonLaneWidth(buttonCount: splitButtonCount, buttonWidth: splitActionButtonWidth)
         )
     }
 
@@ -1054,7 +1058,7 @@ struct TabBarView: View {
     }
 
     private var tabBarSaturation: Double {
-        shouldShowFullSaturation ? 1.0 : 0.0
+        appearance.tabChromePresentation != nil || shouldShowFullSaturation ? 1.0 : 0.0
     }
 
     private var appearance: BonsplitConfiguration.Appearance {
@@ -1092,7 +1096,8 @@ struct TabBarView: View {
             splitButtonCount: visibleSplitButtons.count,
             splitButtonLaneVisible: shouldShowSplitButtons,
             reservesSplitButtonLane: showSplitButtons && !isMinimalMode,
-            measuredSplitButtonLaneWidth: measuredSplitButtonLaneWidth
+            measuredSplitButtonLaneWidth: measuredSplitButtonLaneWidth,
+            splitActionButtonWidth: appearance.tabChromePresentation?.minimumHitSize ?? TabBarStyling.splitActionButtonReservedWidth
         )
     }
 
@@ -1822,16 +1827,14 @@ struct TabBarView: View {
         tooltips: BonsplitConfiguration.SplitButtonTooltips
     ) -> some View {
         if button.activatesOnMouseDown {
-            splitActionButtonIcon(button.icon)
-                .frame(height: tabBarLayout.splitActionButtonHeight)
-                .contentShape(Rectangle())
-                .foregroundStyle(TabBarColors.splitActionIcon(for: appearance, isPressed: false))
-                .tabBarButtonAnimationsDisabled()
-                .overlay(
-                    SplitActionMouseDownOverlay {
-                        performSplitActionButton(button)
-                    }
-                )
+            SplitActionMouseDownButton(presentation: appearance.tabChromePresentation, onMouseDown: {
+                performSplitActionButton(button)
+            }) {
+                splitActionButtonIcon(button.icon)
+                    .frame(height: tabBarLayout.splitActionButtonHeight)
+                    .contentShape(Rectangle())
+                    .foregroundStyle(TabBarColors.splitActionIcon(for: appearance, isPressed: false))
+            }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(splitActionButtonTooltip(button, tooltips: tooltips))
                 .accessibilityAddTraits(.isButton)
@@ -2028,7 +2031,7 @@ struct TabBarView: View {
 
     @ViewBuilder
     private func selectedTabIndicator(totalWidth: CGFloat) -> some View {
-        if let frame = selectedIndicatorFrame(totalWidth: totalWidth) {
+        if appearance.tabChromePresentation == nil, let frame = selectedIndicatorFrame(totalWidth: totalWidth) {
             Rectangle()
                 .fill(TabBarColors.activeIndicator(saturation: tabBarSaturation))
                 .frame(width: frame.width, height: TabBarMetrics.activeIndicatorHeight)
@@ -2152,46 +2155,6 @@ private final class SplitActionButtonImageCache {
 
         images.setObject(image, forKey: key, cost: max(1, data.count))
         return image
-    }
-}
-
-private struct SplitActionButtonStyle: ButtonStyle {
-    let appearance: BonsplitConfiguration.Appearance
-    let layout: TabBarLayout
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .frame(height: layout.splitActionButtonHeight)
-            .contentShape(Rectangle())
-            .foregroundStyle(TabBarColors.splitActionIcon(for: appearance, isPressed: configuration.isPressed))
-            .opacity(configuration.isPressed ? 0.72 : 1.0)
-            .tabBarButtonAnimationsDisabled()
-    }
-}
-
-private struct SplitActionMouseDownOverlay: NSViewRepresentable {
-    let onMouseDown: () -> Void
-
-    func makeNSView(context: Context) -> SplitActionMouseDownNSView {
-        let view = SplitActionMouseDownNSView()
-        view.onMouseDown = onMouseDown
-        return view
-    }
-
-    func updateNSView(_ nsView: SplitActionMouseDownNSView, context: Context) {
-        nsView.onMouseDown = onMouseDown
-    }
-}
-
-private final class SplitActionMouseDownNSView: NSView {
-    var onMouseDown: (() -> Void)?
-
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
-        true
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        onMouseDown?()
     }
 }
 
